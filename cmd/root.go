@@ -7,7 +7,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use: "CLI_NAME", // TODO
+	Use: "moview",
 }
 
 func Execute() {
