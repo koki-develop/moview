@@ -53,9 +53,8 @@ type model struct {
 	totalFrameCount  int
 	loadedFrameCount int
 
-	path           string
-	current        int
-	currentPercent float64
+	path    string
+	current int
 
 	state        modelState
 	windowHeight int
@@ -114,11 +113,20 @@ func (m *model) loadingImagesView() string {
 }
 
 func (m *model) pausedView() string {
-	return m.currentAsciiView() + "\n" + m.progress.ViewAs(m.currentPercent) + "\n\n" + m.helpView()
+	return m.currentAsciiView() + "\n" + m.progressView() + "\n\n" + m.helpView()
 }
 
 func (m *model) playingView() string {
-	return m.currentAsciiView() + "\n" + m.progress.ViewAs(m.currentPercent) + "\n\n" + m.helpView()
+	return m.currentAsciiView() + "\n" + m.progressView() + "\n\n" + m.helpView()
+}
+
+func (m *model) progressView() string {
+	currentPercent := float64(m.current) / float64(len(m.images))
+	if m.current == len(m.images)-1 {
+		currentPercent = 1
+	}
+
+	return m.progress.ViewAs(currentPercent)
 }
 
 func (m *model) currentAsciiView() string {
@@ -246,10 +254,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current++
 		}
 		if m.current >= len(m.images)-1 {
-			m.currentPercent = 1
 			return m, m.pause()
 		}
-		m.currentPercent = float64(m.current) / float64(len(m.images))
 		return m, m.next()
 
 	case pauseMsg:
@@ -258,7 +264,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jumpMsg:
 		m.current = util.Min(len(m.images)-1, util.Max(0, msg.step))
-		m.currentPercent = float64(m.current) / float64(len(m.images))
 		return m, nil
 
 	case spinner.TickMsg:
