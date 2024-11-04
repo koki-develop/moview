@@ -28,7 +28,7 @@ Play video in terminal.
 
 ## Prerequisites
 
-moview requires FFmpeg to be installed.
+moview requires FFmpeg to be installed.  
 For example, if you want to install it using Homebrew, run the following command:
 
 ```console
