@@ -63,6 +63,9 @@ type model struct {
 	frameRate float64
 	images    []image.Image
 	imagesDir string
+
+	asciisCache     []string
+	shouldRepreload bool
 }
 
 func newModel(opt *Option) *model {
@@ -91,33 +94,40 @@ func (m *model) View() string {
 		return m.extractingImagesView()
 	case modelStateLoadingImages:
 		return m.loadingImagesView()
-	case modelStatePlaying:
-		return m.playingView()
-	case modelStatePaused:
-		return m.pausedView()
+	case modelStatePlaying, modelStatePaused:
+		return m.mainView()
 	}
 
 	return ""
 }
 
 func (m *model) loadingMetadataView() string {
-	return m.spinner.View() + "Loading video metadata..."
+	return m.spinnerView("Loading video metadata...")
 }
 
 func (m *model) extractingImagesView() string {
-	return m.spinner.View() + "Extracting frames..."
+	return m.spinnerView("Extracting frames...")
 }
 
 func (m *model) loadingImagesView() string {
-	return m.spinner.View() + fmt.Sprintf("Loading frames...(%d/%d)", m.loadedFrameCount, m.totalFrameCount)
+	return m.spinnerView(fmt.Sprintf("Loading frames...(%d/%d)", m.loadedFrameCount, m.totalFrameCount))
 }
 
-func (m *model) pausedView() string {
-	return m.currentAsciiView() + "\n" + m.progressView() + "\n\n" + m.helpView()
+func (m *model) spinnerView(text string) string {
+	b := new(strings.Builder)
+	b.WriteString(m.spinner.View())
+	b.WriteString(text)
+	return b.String()
 }
 
-func (m *model) playingView() string {
-	return m.currentAsciiView() + "\n" + m.progressView() + "\n\n" + m.helpView()
+func (m *model) mainView() string {
+	b := new(strings.Builder)
+	b.WriteString(m.currentAsciiView())
+	b.WriteString("\n")
+	b.WriteString(m.progressView())
+	b.WriteString("\n\n")
+	b.WriteString(m.helpView())
+	return b.String()
 }
 
 func (m *model) progressView() string {
@@ -130,10 +140,22 @@ func (m *model) progressView() string {
 }
 
 func (m *model) currentAsciiView() string {
-	img := m.resizer.Resize(m.images[m.current], m.windowWidth-2, m.windowHeight-4)
-	ascii, err := m.converter.ImageToASCII(img)
+	if m.asciisCache[m.current] != "" {
+		return m.asciisCache[m.current]
+	}
+	v, err := m.asciiView(m.current)
 	if err != nil {
 		return err.Error()
+	}
+	m.asciisCache[m.current] = v
+	return v
+}
+
+func (m *model) asciiView(index int) (string, error) {
+	img := m.resizer.Resize(m.images[index], m.windowWidth-2, m.windowHeight-4)
+	ascii, err := m.converter.ImageToASCII(img)
+	if err != nil {
+		return "", err
 	}
 
 	leftPad := strings.Repeat(" ", util.Max(0, (m.windowWidth-img.Bounds().Max.X)/2))
@@ -144,7 +166,7 @@ func (m *model) currentAsciiView() string {
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	return b.String(), nil
 }
 
 func (m *model) helpView() string {
@@ -189,6 +211,7 @@ type loadFrameMsg struct{}
 type loadMsg struct {
 	images []image.Image
 }
+type repreloadMsg struct{}
 type playMsg struct{}
 type pauseMsg struct{}
 type nextMsg struct{}
@@ -221,6 +244,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.windowHeight = msg.Height
 		m.windowWidth = msg.Width
 		m.progress.Width = msg.Width
+		if len(m.images) > 0 {
+			m.asciisCache = make([]string, len(m.images))
+			m.shouldRepreload = true
+		}
 		return m, nil
 
 	case metadataMsg:
@@ -240,7 +267,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case loadMsg:
 		m.images = msg.images
-		return m, tea.Batch(m.pause(), tea.EnterAltScreen)
+		m.asciisCache = make([]string, len(m.images))
+		return m, tea.Batch(m.pause(), m.preloadAsciis(), tea.EnterAltScreen)
 
 	case playMsg:
 		m.state = modelStatePlaying
@@ -264,7 +292,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case jumpMsg:
 		m.current = util.Min(len(m.images)-1, util.Max(0, msg.step))
+		m.shouldRepreload = true
 		return m, nil
+
+	case repreloadMsg:
+		return m, m.preloadAsciis()
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -360,6 +392,26 @@ func (m *model) load(paths []string) tea.Cmd {
 		}
 
 		return loadMsg{imgs}
+	}
+}
+
+func (m *model) preloadAsciis() tea.Cmd {
+	return func() tea.Msg {
+		for i := m.current; i < len(m.images); i++ {
+			if m.shouldRepreload {
+				m.shouldRepreload = false
+				return repreloadMsg{}
+			}
+
+			if m.asciisCache[i] != "" {
+				continue
+			}
+
+			if v, err := m.asciiView(i); err == nil {
+				m.asciisCache[i] = v
+			}
+		}
+		return nil
 	}
 }
 
