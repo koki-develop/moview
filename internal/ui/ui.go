@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/fatih/color"
 	"github.com/koki-develop/moview/internal/ascii"
 	"github.com/koki-develop/moview/internal/ffmpeg"
 	"github.com/koki-develop/moview/internal/resize"
@@ -86,17 +87,15 @@ func (m *model) loadingView() string {
 }
 
 func (m *model) pausedView() string {
-	// TODO: show help
-	return m.currentAscii()
+	return m.currentAsciiView() + "\n" + m.helpView()
 }
 
 func (m *model) playingView() string {
-	// TODO: show help
-	return m.currentAscii()
+	return m.currentAsciiView() + "\n" + m.helpView()
 }
 
-func (m *model) currentAscii() string {
-	img := m.resizer.Resize(m.images[m.current], m.windowWidth, m.windowHeight-4)
+func (m *model) currentAsciiView() string {
+	img := m.resizer.Resize(m.images[m.current], m.windowWidth-2, m.windowHeight-4)
 	ascii, err := m.converter.ImageToASCII(img)
 	if err != nil {
 		return err.Error()
@@ -104,12 +103,26 @@ func (m *model) currentAscii() string {
 
 	leftPad := strings.Repeat(" ", util.Max(0, (m.windowWidth-img.Bounds().Max.X)/2))
 	b := new(strings.Builder)
-	b.WriteString("\n")
 	for _, line := range ascii {
 		b.WriteString(leftPad)
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
+
+	return b.String()
+}
+
+func (m *model) helpView() string {
+	b := new(strings.Builder)
+	b.WriteString(strings.Repeat(" ", util.Max(0, (m.windowWidth-18)/2)))
+
+	switch m.state {
+	case modelStatePlaying:
+		b.WriteString(color.New(color.BgRed, color.FgWhite).Sprintf(" ⏸︎ "))
+	case modelStatePaused:
+		b.WriteString(color.New(color.BgGreen, color.FgBlack).Sprintf(" ▶︎ "))
+	}
+	b.WriteString(" Space/Enter")
 
 	return b.String()
 }
@@ -138,7 +151,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, m.quit()
-		case tea.KeySpace:
+		case tea.KeySpace, tea.KeyEnter:
 			switch m.state {
 			case modelStatePlaying:
 				return m, m.pause()
