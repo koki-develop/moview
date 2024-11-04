@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	flagAutoPlay bool
+	flagAutoPlay   bool
+	flagAutoRepeat bool
 )
 
 var rootCmd = &cobra.Command{
@@ -26,7 +27,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		if err := ui.Start(&ui.Option{Path: p, AutoPlay: flagAutoPlay}); err != nil {
+		if err := ui.Start(&ui.Option{Path: p, AutoPlay: flagAutoPlay, AutoRepeat: flagAutoRepeat}); err != nil {
 			return err
 		}
 		return nil
@@ -35,6 +36,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.Flags().BoolVar(&flagAutoPlay, "auto-play", false, "auto play video")
+	rootCmd.Flags().BoolVar(&flagAutoRepeat, "auto-repeat", false, "auto repeat video")
 }
 
 func Execute() {

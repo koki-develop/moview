@@ -21,8 +21,9 @@ import (
 )
 
 type Option struct {
-	Path     string
-	AutoPlay bool
+	Path       string
+	AutoPlay   bool
+	AutoRepeat bool
 }
 
 func Start(opt *Option) error {
@@ -55,7 +56,8 @@ type model struct {
 	totalFrameCount  int
 	loadedFrameCount int
 
-	autoPlay bool
+	autoPlay   bool
+	autoRepeat bool
 
 	path    string
 	current int
@@ -76,7 +78,9 @@ type model struct {
 
 func newModel(opt *Option) *model {
 	return &model{
-		autoPlay: opt.AutoPlay,
+		autoPlay:   opt.AutoPlay,
+		autoRepeat: opt.AutoRepeat,
+
 		progress: progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage()),
 		spinner:  spinner.New(spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))), spinner.WithSpinner(spinner.Dot)),
 
@@ -329,7 +333,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current++
 		}
 		if m.current >= len(m.images)-1 {
-			return m, m.pause()
+			if m.autoRepeat {
+				m.current = 0
+			} else {
+				return m, m.pause()
+			}
 		}
 		return m, m.next()
 
