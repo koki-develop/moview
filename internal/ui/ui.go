@@ -430,7 +430,8 @@ func (m *model) play() tea.Cmd {
 }
 
 func (m *model) next() tea.Cmd {
-	return tea.Tick(time.Second/time.Duration(m.frameRate), func(t time.Time) tea.Msg {
+	// NOTE: Play 2% faster to account for rendering delay
+	return tea.Tick(time.Duration(float64(time.Second)/m.frameRate*0.98), func(t time.Time) tea.Msg {
 		if m.state == modelStatePlaying {
 			return nextMsg{}
 		}
