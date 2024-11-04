@@ -149,7 +149,7 @@ type loadMsg struct {
 }
 type playMsg struct{}
 type pauseMsg struct{}
-type forwardMsg struct{}
+type nextMsg struct{}
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -188,16 +188,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.current == len(m.images)-1 {
 			m.current = 0
 		}
-		return m, m.forward()
+		return m, m.next()
 
-	case forwardMsg:
+	case nextMsg:
 		m.current++
 		if m.current == len(m.images)-1 {
 			m.currentPercent = 1
 			return m, m.pause()
 		}
 		m.currentPercent = float64(m.current) / float64(len(m.images))
-		return m, m.forward()
+		return m, m.next()
 
 	case pauseMsg:
 		m.state = modelStatePaused
@@ -253,10 +253,10 @@ func (m *model) play() tea.Cmd {
 	return func() tea.Msg { return playMsg{} }
 }
 
-func (m *model) forward() tea.Cmd {
+func (m *model) next() tea.Cmd {
 	return tea.Tick(time.Second/time.Duration(m.frameRate), func(t time.Time) tea.Msg {
 		if m.state == modelStatePlaying {
-			return forwardMsg{}
+			return nextMsg{}
 		}
 		return nil
 	})
