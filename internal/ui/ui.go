@@ -506,12 +506,12 @@ func (m *model) pause() tea.Cmd {
 
 func (m *model) forward() tea.Cmd {
 	return func() tea.Msg {
-		return jumpMsg{m.current + int(5*m.frameRate)}
+		return jumpMsg{m.current + int(10*m.frameRate)}
 	}
 }
 
 func (m *model) back() tea.Cmd {
 	return func() tea.Msg {
-		return jumpMsg{m.current - int(5*m.frameRate)}
+		return jumpMsg{m.current - int(10*m.frameRate)}
 	}
 }
