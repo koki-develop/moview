@@ -303,21 +303,55 @@ func (m *model) extractImages() tea.Cmd {
 
 func (m *model) load(paths []string) tea.Cmd {
 	return func() tea.Msg {
-		imgs := make([]image.Image, 0, len(paths))
-		for _, path := range paths {
-			f, err := os.Open(path)
-			if err != nil {
-				return errMsg{err}
-			}
-			defer f.Close()
+		imgs := make([]image.Image, len(paths))
+		errChan := make(chan error, 1)
+		resultChan := make(chan struct {
+			index int
+			img   image.Image
+		}, len(paths))
 
-			img, _, err := image.Decode(f)
-			if err != nil {
-				return errMsg{err}
-			}
-			imgs = append(imgs, img)
+		numWorkers := 20
+		batchSize := (len(paths) + numWorkers - 1) / numWorkers
 
-			m.program.Send(loadFrameMsg{})
+		for w := 0; w < numWorkers; w++ {
+			start := w * batchSize
+			end := start + batchSize
+			if end > len(paths) {
+				end = len(paths)
+			}
+
+			go func(start, end int) {
+				for i := start; i < end; i++ {
+					f, err := os.Open(paths[i])
+					if err != nil {
+						errChan <- err
+						return
+					}
+
+					img, _, err := image.Decode(f)
+					f.Close()
+					if err != nil {
+						errChan <- err
+						return
+					}
+
+					resultChan <- struct {
+						index int
+						img   image.Image
+					}{i, img}
+
+					m.program.Send(loadFrameMsg{})
+				}
+			}(start, end)
+		}
+
+		for i := 0; i < len(paths); i++ {
+			select {
+			case err := <-errChan:
+				return errMsg{err}
+			case result := <-resultChan:
+				imgs[result.index] = result.img
+			}
 		}
 
 		return loadMsg{imgs}
