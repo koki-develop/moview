@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fatih/color"
 	"github.com/koki-develop/moview/internal/ascii"
@@ -38,23 +39,28 @@ var _ tea.Model = &model{}
 type model struct {
 	err error
 
+	progress progress.Model
+
 	resizer   *resize.Resizer
 	converter *ascii.Converter
 
-	path    string
-	current int
+	path           string
+	current        int
+	currentPercent float64
 
 	state        modelState
 	windowHeight int
 	windowWidth  int
 
-	tickDuration time.Duration
-	images       []image.Image
-	imagesDir    string
+	frameRate float64
+	images    []image.Image
+	imagesDir string
 }
 
 func newModel(opt *Option) *model {
 	return &model{
+		progress: progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage()),
+
 		resizer:   resize.NewResizer(),
 		converter: ascii.NewConverter(),
 
@@ -87,11 +93,11 @@ func (m *model) loadingView() string {
 }
 
 func (m *model) pausedView() string {
-	return m.currentAsciiView() + "\n" + m.helpView()
+	return m.currentAsciiView() + "\n" + m.progress.ViewAs(m.currentPercent) + "\n\n" + m.helpView()
 }
 
 func (m *model) playingView() string {
-	return m.currentAsciiView() + "\n" + m.helpView()
+	return m.currentAsciiView() + "\n" + m.progress.ViewAs(m.currentPercent) + "\n\n" + m.helpView()
 }
 
 func (m *model) currentAsciiView() string {
@@ -137,9 +143,9 @@ const (
 
 type errMsg struct{ error }
 type loadMsg struct {
-	tickDuration time.Duration
-	images       []image.Image
-	imagesDir    string
+	frameRate float64
+	images    []image.Image
+	imagesDir string
 }
 type playMsg struct{}
 type pauseMsg struct{}
@@ -167,10 +173,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.windowHeight = msg.Height
 		m.windowWidth = msg.Width
+		m.progress.Width = msg.Width
 		return m, nil
 
 	case loadMsg:
-		m.tickDuration = msg.tickDuration
+		m.frameRate = msg.frameRate
 		m.images = msg.images
 		m.imagesDir = msg.imagesDir
 		m.state = modelStatePlaying
@@ -186,8 +193,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case forwardMsg:
 		m.current++
 		if m.current == len(m.images)-1 {
+			m.currentPercent = 1
 			return m, m.pause()
 		}
+		m.currentPercent = float64(m.current) / float64(len(m.images))
 		return m, m.forward()
 
 	case pauseMsg:
@@ -236,9 +245,7 @@ func (m *model) load() tea.Cmd {
 			imgs = append(imgs, img)
 		}
 
-		d := time.Second / time.Duration(probe.FrameRate)
-
-		return loadMsg{d, imgs, dir}
+		return loadMsg{probe.FrameRate, imgs, dir}
 	}
 }
 
@@ -247,7 +254,7 @@ func (m *model) play() tea.Cmd {
 }
 
 func (m *model) forward() tea.Cmd {
-	return tea.Tick(m.tickDuration, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Second/time.Duration(m.frameRate), func(t time.Time) tea.Msg {
 		if m.state == modelStatePlaying {
 			return forwardMsg{}
 		}
