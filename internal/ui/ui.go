@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	_ "image/jpeg"
 	"os"
@@ -8,7 +9,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/fatih/color"
 	"github.com/koki-develop/moview/internal/ascii"
 	"github.com/koki-develop/moview/internal/ffmpeg"
@@ -23,6 +26,7 @@ type Option struct {
 func Start(opt *Option) error {
 	m := newModel(opt)
 	p := tea.NewProgram(m)
+	m.program = p
 	if _, err := p.Run(); err != nil {
 		return err
 	}
@@ -37,12 +41,17 @@ func Start(opt *Option) error {
 var _ tea.Model = &model{}
 
 type model struct {
-	err error
+	program *tea.Program
+	err     error
 
 	progress progress.Model
+	spinner  spinner.Model
 
 	resizer   *resize.Resizer
 	converter *ascii.Converter
+
+	totalFrameCount  int
+	loadedFrameCount int
 
 	path           string
 	current        int
@@ -60,6 +69,7 @@ type model struct {
 func newModel(opt *Option) *model {
 	return &model{
 		progress: progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage()),
+		spinner:  spinner.New(spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))), spinner.WithSpinner(spinner.Dot)),
 
 		resizer:   resize.NewResizer(),
 		converter: ascii.NewConverter(),
@@ -70,14 +80,18 @@ func newModel(opt *Option) *model {
 }
 
 func (m *model) Init() tea.Cmd {
-	m.state = modelStateLoading
-	return m.loadMetadata()
+	m.state = modelStateLoadingMetadata
+	return tea.Batch(m.spinner.Tick, m.loadMetadata())
 }
 
 func (m *model) View() string {
 	switch m.state {
-	case modelStateLoading:
-		return m.loadingView()
+	case modelStateLoadingMetadata:
+		return m.loadingMetadataView()
+	case modelStateExtractingImages:
+		return m.extractingImagesView()
+	case modelStateLoadingImages:
+		return m.loadingImagesView()
 	case modelStatePlaying:
 		return m.playingView()
 	case modelStatePaused:
@@ -87,9 +101,16 @@ func (m *model) View() string {
 	return ""
 }
 
-func (m *model) loadingView() string {
-	// TODO: show progress
-	return "loading..."
+func (m *model) loadingMetadataView() string {
+	return m.spinner.View() + "Loading video metadata..."
+}
+
+func (m *model) extractingImagesView() string {
+	return m.spinner.View() + "Extracting frames..."
+}
+
+func (m *model) loadingImagesView() string {
+	return m.spinner.View() + fmt.Sprintf("Loading frames...(%d/%d)", m.loadedFrameCount, m.totalFrameCount)
 }
 
 func (m *model) pausedView() string {
@@ -137,12 +158,15 @@ func (m *model) helpView() string {
 	return b.String()
 }
 
-type modelState string
+type modelState int
 
 const (
-	modelStateLoading modelState = "loading"
-	modelStatePlaying modelState = "playing"
-	modelStatePaused  modelState = "paused"
+	_ modelState = iota
+	modelStateLoadingMetadata
+	modelStateExtractingImages
+	modelStateLoadingImages
+	modelStatePlaying
+	modelStatePaused
 )
 
 type errMsg struct{ error }
@@ -153,6 +177,7 @@ type extractImagesMsg struct {
 	imagesDir string
 	paths     []string
 }
+type loadFrameMsg struct{}
 type loadMsg struct {
 	images []image.Image
 }
@@ -192,11 +217,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case metadataMsg:
 		m.frameRate = msg.frameRate
+		m.state = modelStateExtractingImages
 		return m, m.extractImages()
 
 	case extractImagesMsg:
 		m.imagesDir = msg.imagesDir
+		m.totalFrameCount = len(msg.paths)
+		m.state = modelStateLoadingImages
 		return m, m.load(msg.paths)
+
+	case loadFrameMsg:
+		m.loadedFrameCount++
+		return m, nil
 
 	case loadMsg:
 		m.images = msg.images
@@ -228,6 +260,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.current = util.Min(len(m.images)-1, util.Max(0, msg.step))
 		m.currentPercent = float64(m.current) / float64(len(m.images))
 		return m, nil
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -279,6 +316,8 @@ func (m *model) load(paths []string) tea.Cmd {
 				return errMsg{err}
 			}
 			imgs = append(imgs, img)
+
+			m.program.Send(loadFrameMsg{})
 		}
 
 		return loadMsg{imgs}
