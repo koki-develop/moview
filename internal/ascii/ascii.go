@@ -6,17 +6,14 @@ import (
 	"strings"
 
 	"github.com/qeesung/image2ascii/ascii"
-	"github.com/qeesung/image2ascii/convert"
 )
 
 type Converter struct {
-	resizeHandler  *convert.ImageResizeHandler
 	pixelConverter ascii.PixelConverter
 }
 
 func NewConverter() *Converter {
 	return &Converter{
-		resizeHandler:  convert.NewResizeHandler().(*convert.ImageResizeHandler),
 		pixelConverter: ascii.NewPixelConverter(),
 	}
 }
