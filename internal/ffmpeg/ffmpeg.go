@@ -32,6 +32,12 @@ func MovieToImages(input string) ([]string, error) {
 		return nil, fmt.Errorf("failed to list generated files: %w", err)
 	}
 
-	sort.Strings(files)
+	sort.Slice(files, func(i, j int) bool {
+		if len(files[i]) == len(files[j]) {
+			return files[i] < files[j]
+		}
+		return len(files[i]) < len(files[j])
+	})
+
 	return files, nil
 }
