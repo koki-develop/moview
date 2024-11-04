@@ -167,7 +167,7 @@ func (m *model) currentAsciiView() string {
 }
 
 func (m *model) asciiView(index int) (string, error) {
-	img := m.resizer.Resize(m.images[index], m.windowWidth-2, m.windowHeight-4)
+	img := m.resizer.Resize(m.images[index], m.windowWidth-2, m.windowHeight-5)
 	ascii, err := m.converter.ImageToASCII(img)
 	if err != nil {
 		return "", err
