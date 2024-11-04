@@ -18,12 +18,24 @@ Play video in terminal.
 ## Contents
 
 - [Contents](#contents)
+- [Prerequisites](#prerequisites)
 - [Installation](#installation)
   - [Homebrew Tap](#homebrew-tap)
   - [`go install`](#go-install)
   - [Releases](#releases)
 - [Usage](#usage)
 - [LICENSE](#license)
+
+## Prerequisites
+
+moview requires FFmpeg to be installed.
+For example, if you want to install it using Homebrew, run the following command:
+
+```console
+$ brew install ffmpeg
+```
+
+For more information, please refer to the [FFmpeg official site](https://ffmpeg.org).
 
 ## Installation
 
@@ -53,9 +65,10 @@ Usage:
   moview FILE [flags]
 
 Flags:
-      --auto-play   auto play video
-  -h, --help        help for moview
-  -v, --version     version for moview
+      --auto-play     auto play video
+      --auto-repeat   auto repeat video
+  -h, --help          help for moview
+  -v, --version       version for moview
 ```
 
 ## LICENSE
