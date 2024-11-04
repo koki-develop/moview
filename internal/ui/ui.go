@@ -120,7 +120,9 @@ func (m *model) currentAsciiView() string {
 
 func (m *model) helpView() string {
 	b := new(strings.Builder)
-	b.WriteString(strings.Repeat(" ", util.Max(0, (m.windowWidth-18)/2)))
+	b.WriteString(strings.Repeat(" ", util.Max(0, (m.windowWidth-36)/2)))
+
+	b.WriteString("← 10s | ")
 
 	switch m.state {
 	case modelStatePlaying:
@@ -129,6 +131,8 @@ func (m *model) helpView() string {
 		b.WriteString(color.New(color.BgGreen, color.FgBlack).Sprintf(" ▶︎ "))
 	}
 	b.WriteString(" Space/Enter")
+
+	b.WriteString(" | 10s →")
 
 	return b.String()
 }
@@ -150,6 +154,7 @@ type loadMsg struct {
 type playMsg struct{}
 type pauseMsg struct{}
 type nextMsg struct{}
+type jumpMsg struct{ step int }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -164,6 +169,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case modelStatePaused:
 				return m, m.play()
 			}
+		case tea.KeyRight:
+			return m, m.forward()
+		case tea.KeyLeft:
+			return m, m.back()
 		}
 
 	case errMsg:
@@ -191,8 +200,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.next()
 
 	case nextMsg:
-		m.current++
-		if m.current == len(m.images)-1 {
+		if m.current < len(m.images)-1 {
+			m.current++
+		}
+		if m.current >= len(m.images)-1 {
 			m.currentPercent = 1
 			return m, m.pause()
 		}
@@ -201,6 +212,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case pauseMsg:
 		m.state = modelStatePaused
+		return m, nil
+
+	case jumpMsg:
+		m.current = util.Min(len(m.images)-1, util.Max(0, msg.step))
+		m.currentPercent = float64(m.current) / float64(len(m.images))
 		return m, nil
 	}
 
@@ -264,4 +280,16 @@ func (m *model) next() tea.Cmd {
 
 func (m *model) pause() tea.Cmd {
 	return func() tea.Msg { return pauseMsg{} }
+}
+
+func (m *model) forward() tea.Cmd {
+	return func() tea.Msg {
+		return jumpMsg{m.current + int(5*m.frameRate)}
+	}
+}
+
+func (m *model) back() tea.Cmd {
+	return func() tea.Msg {
+		return jumpMsg{m.current - int(5*m.frameRate)}
+	}
 }
