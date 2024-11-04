@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	flagAutoPlay bool
+)
+
 var rootCmd = &cobra.Command{
 	Use:  "moview FILE",
 	Args: cobra.ExactArgs(1),
@@ -22,11 +26,15 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		if err := ui.Start(&ui.Option{Path: p}); err != nil {
+		if err := ui.Start(&ui.Option{Path: p, AutoPlay: flagAutoPlay}); err != nil {
 			return err
 		}
 		return nil
 	},
+}
+
+func init() {
+	rootCmd.Flags().BoolVar(&flagAutoPlay, "auto-play", false, "auto play video")
 }
 
 func Execute() {

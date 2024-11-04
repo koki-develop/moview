@@ -21,7 +21,8 @@ import (
 )
 
 type Option struct {
-	Path string
+	Path     string
+	AutoPlay bool
 }
 
 func Start(opt *Option) error {
@@ -54,6 +55,8 @@ type model struct {
 	totalFrameCount  int
 	loadedFrameCount int
 
+	autoPlay bool
+
 	path    string
 	current int
 
@@ -73,6 +76,7 @@ type model struct {
 
 func newModel(opt *Option) *model {
 	return &model{
+		autoPlay: opt.AutoPlay,
 		progress: progress.New(progress.WithDefaultGradient(), progress.WithoutPercentage()),
 		spinner:  spinner.New(spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("205"))), spinner.WithSpinner(spinner.Dot)),
 
@@ -305,7 +309,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loadMsg:
 		m.images = msg.images
 		m.asciisCache = make([]string, len(m.images))
-		return m, tea.Batch(m.pause(), m.preloadAsciis(), tea.EnterAltScreen)
+		cmds := []tea.Cmd{m.preloadAsciis(), tea.EnterAltScreen}
+		if m.autoPlay {
+			cmds = append(cmds, m.play())
+		} else {
+			cmds = append(cmds, m.pause())
+		}
+		return m, tea.Batch(cmds...)
 
 	case playMsg:
 		m.state = modelStatePlaying
