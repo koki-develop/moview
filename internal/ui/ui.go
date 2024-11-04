@@ -11,6 +11,7 @@ import (
 	"github.com/koki-develop/moview/internal/ascii"
 	"github.com/koki-develop/moview/internal/ffmpeg"
 	"github.com/koki-develop/moview/internal/resize"
+	"github.com/koki-develop/moview/internal/util"
 )
 
 type Option struct {
@@ -95,12 +96,22 @@ func (m *model) playingView() string {
 }
 
 func (m *model) currentAscii() string {
-	img := m.resizer.Resize(m.images[m.current], m.windowWidth, m.windowHeight-3)
+	img := m.resizer.Resize(m.images[m.current], m.windowWidth, m.windowHeight-4)
 	ascii, err := m.converter.ImageToASCII(img)
 	if err != nil {
 		return err.Error()
 	}
-	return strings.Join(ascii, "\n")
+
+	leftPad := strings.Repeat(" ", util.Max(0, (m.windowWidth-img.Bounds().Max.X)/2))
+	b := new(strings.Builder)
+	b.WriteString("\n")
+	for _, line := range ascii {
+		b.WriteString(leftPad)
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }
 
 type modelState string
@@ -117,6 +128,8 @@ type loadMsg struct {
 	images       []image.Image
 	imagesDir    string
 }
+type playMsg struct{}
+type pauseMsg struct{}
 type forwardMsg struct{}
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -125,6 +138,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, m.quit()
+		case tea.KeySpace:
+			switch m.state {
+			case modelStatePlaying:
+				return m, m.pause()
+			case modelStatePaused:
+				return m, m.play()
+			}
 		}
 
 	case errMsg:
@@ -141,16 +161,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.images = msg.images
 		m.imagesDir = msg.imagesDir
 		m.state = modelStatePlaying
-		return m, tea.Batch(m.play(), tea.EnterAltScreen)
+		return m, tea.Batch(m.pause(), tea.EnterAltScreen)
+
+	case playMsg:
+		m.state = modelStatePlaying
+		return m, m.forward()
 
 	case forwardMsg:
 		m.current++
 		if m.current == len(m.images)-1 {
-			m.state = modelStatePaused
-			return m, nil
+			return m, m.pause()
 		}
-		return m, m.play()
+		return m, m.forward()
+
+	case pauseMsg:
+		m.state = modelStatePaused
+		return m, nil
 	}
+
 	return m, nil
 }
 
@@ -199,7 +227,18 @@ func (m *model) load() tea.Cmd {
 }
 
 func (m *model) play() tea.Cmd {
+	return func() tea.Msg { return playMsg{} }
+}
+
+func (m *model) forward() tea.Cmd {
 	return tea.Tick(m.tickDuration, func(t time.Time) tea.Msg {
-		return forwardMsg{}
+		if m.state == modelStatePlaying {
+			return forwardMsg{}
+		}
+		return nil
 	})
+}
+
+func (m *model) pause() tea.Cmd {
+	return func() tea.Msg { return pauseMsg{} }
 }
