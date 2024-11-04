@@ -165,6 +165,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playMsg:
 		m.state = modelStatePlaying
+		if m.current == len(m.images)-1 {
+			m.current = 0
+		}
 		return m, m.forward()
 
 	case forwardMsg:
