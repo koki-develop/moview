@@ -71,7 +71,7 @@ func newModel(opt *Option) *model {
 
 func (m *model) Init() tea.Cmd {
 	m.state = modelStateLoading
-	return m.load()
+	return m.loadMetadata()
 }
 
 func (m *model) View() string {
@@ -146,10 +146,15 @@ const (
 )
 
 type errMsg struct{ error }
-type loadMsg struct {
+type metadataMsg struct {
 	frameRate float64
-	images    []image.Image
+}
+type extractImagesMsg struct {
 	imagesDir string
+	paths     []string
+}
+type loadMsg struct {
+	images []image.Image
 }
 type playMsg struct{}
 type pauseMsg struct{}
@@ -185,11 +190,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progress.Width = msg.Width
 		return m, nil
 
-	case loadMsg:
+	case metadataMsg:
 		m.frameRate = msg.frameRate
-		m.images = msg.images
+		return m, m.extractImages()
+
+	case extractImagesMsg:
 		m.imagesDir = msg.imagesDir
-		m.state = modelStatePlaying
+		return m, m.load(msg.paths)
+
+	case loadMsg:
+		m.images = msg.images
 		return m, tea.Batch(m.pause(), tea.EnterAltScreen)
 
 	case playMsg:
@@ -230,13 +240,18 @@ func (m *model) quit() tea.Cmd {
 	return tea.Quit
 }
 
-func (m *model) load() tea.Cmd {
+func (m *model) loadMetadata() tea.Cmd {
 	return func() tea.Msg {
 		probe, err := ffmpeg.FFProbe(m.path)
 		if err != nil {
 			return errMsg{err}
 		}
+		return metadataMsg{probe.FrameRate}
+	}
+}
 
+func (m *model) extractImages() tea.Cmd {
+	return func() tea.Msg {
 		dir, err := os.MkdirTemp("", "moview")
 		if err != nil {
 			return errMsg{err}
@@ -245,7 +260,12 @@ func (m *model) load() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
+		return extractImagesMsg{dir, paths}
+	}
+}
 
+func (m *model) load(paths []string) tea.Cmd {
+	return func() tea.Msg {
 		imgs := make([]image.Image, 0, len(paths))
 		for _, path := range paths {
 			f, err := os.Open(path)
@@ -261,7 +281,7 @@ func (m *model) load() tea.Cmd {
 			imgs = append(imgs, img)
 		}
 
-		return loadMsg{probe.FrameRate, imgs, dir}
+		return loadMsg{imgs}
 	}
 }
 
