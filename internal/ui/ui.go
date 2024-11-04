@@ -136,7 +136,17 @@ func (m *model) progressView() string {
 		currentPercent = 1
 	}
 
-	return m.progress.ViewAs(currentPercent)
+	totalSeconds := float64(len(m.images)) / m.frameRate
+	currentSeconds := float64(m.current) / m.frameRate
+	progressText := fmt.Sprintf(
+		"%02d:%02d / %02d:%02d",
+		int(currentSeconds)/60, int(currentSeconds)%60,
+		int(totalSeconds)/60, int(totalSeconds)%60,
+	)
+
+	padLeft := strings.Repeat(" ", util.Max(0, (m.windowWidth-len(progressText))/2))
+
+	return m.progress.ViewAs(currentPercent) + "\n" + padLeft + progressText
 }
 
 func (m *model) currentAsciiView() string {
