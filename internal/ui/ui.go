@@ -5,6 +5,7 @@ import (
 	"image"
 	_ "image/jpeg"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -64,8 +65,9 @@ type model struct {
 	images    []image.Image
 	imagesDir string
 
-	asciisCache     []string
-	shouldRepreload bool
+	asciisCache         []string
+	shouldRepreload     bool
+	shouldCancelPreload bool
 }
 
 func newModel(opt *Option) *model {
@@ -212,10 +214,10 @@ const (
 type errMsg struct{ error }
 type metadataMsg struct {
 	frameRate float64
+	imagesDir string
 }
 type extractImagesMsg struct {
-	imagesDir string
-	paths     []string
+	paths []string
 }
 type loadFrameMsg struct{}
 type loadMsg struct {
@@ -232,7 +234,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
-			return m, m.quit()
+			m.shouldCancelPreload = true
+			return m, m.cleanup()
 		case tea.KeySpace, tea.KeyEnter:
 			switch m.state {
 			case modelStatePlaying:
@@ -247,8 +250,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case errMsg:
+		m.shouldCancelPreload = true
 		m.err = msg.error
-		return m, m.quit()
+		return m, m.cleanup()
 
 	case tea.WindowSizeMsg:
 		m.windowHeight = msg.Height
@@ -262,11 +266,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case metadataMsg:
 		m.frameRate = msg.frameRate
+		m.imagesDir = msg.imagesDir
 		m.state = modelStateExtractingImages
-		return m, m.extractImages()
+		return m, m.extractImages(msg.imagesDir)
 
 	case extractImagesMsg:
-		m.imagesDir = msg.imagesDir
 		m.totalFrameCount = len(msg.paths)
 		m.state = modelStateLoadingImages
 		return m, m.load(msg.paths)
@@ -317,11 +321,26 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) quit() tea.Cmd {
-	if m.imagesDir != "" {
-		_ = os.RemoveAll(m.imagesDir)
+func (m *model) cleanup() tea.Cmd {
+	return func() tea.Msg {
+		if m.imagesDir != "" {
+			// NOTE: Using os.RemoveAll alone can fail sometimes, so delete files one by one
+			files, err := os.ReadDir(m.imagesDir)
+			if err != nil {
+				return errMsg{err}
+			}
+			for _, file := range files {
+				if err := os.Remove(filepath.Join(m.imagesDir, file.Name())); err != nil {
+					return errMsg{err}
+				}
+			}
+
+			if err := os.RemoveAll(m.imagesDir); err != nil {
+				return errMsg{err}
+			}
+		}
+		return tea.Quit()
 	}
-	return tea.Quit
 }
 
 func (m *model) loadMetadata() tea.Cmd {
@@ -330,21 +349,23 @@ func (m *model) loadMetadata() tea.Cmd {
 		if err != nil {
 			return errMsg{err}
 		}
-		return metadataMsg{probe.FrameRate}
-	}
-}
 
-func (m *model) extractImages() tea.Cmd {
-	return func() tea.Msg {
 		dir, err := os.MkdirTemp("", "moview")
 		if err != nil {
 			return errMsg{err}
 		}
+
+		return metadataMsg{probe.FrameRate, dir}
+	}
+}
+
+func (m *model) extractImages(dir string) tea.Cmd {
+	return func() tea.Msg {
 		paths, err := ffmpeg.MovieToImages(m.path, dir)
 		if err != nil {
 			return errMsg{err}
 		}
-		return extractImagesMsg{dir, paths}
+		return extractImagesMsg{paths}
 	}
 }
 
@@ -411,6 +432,10 @@ func (m *model) preloadAsciis() tea.Cmd {
 			if m.shouldRepreload {
 				m.shouldRepreload = false
 				return repreloadMsg{}
+			}
+			if m.shouldCancelPreload {
+				m.shouldCancelPreload = false
+				return nil
 			}
 
 			if m.asciisCache[i] != "" {
