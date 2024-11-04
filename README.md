@@ -1,24 +1,27 @@
-<!-- TODO: Replace `CLI_NAME` with cli name. -->
-<h1 align="center">CLI_NAME</h1>
+<h1 align="center">moview</h1>
 
-<!-- TODO: Replace `CLI_NAME` with cli name. -->
 <p align="center">
-<!-- <a href="https://github.com/koki-develop/CLI_NAME/releases/latest"><img src="https://img.shields.io/github/v/release/koki-develop/CLI_NAME" alt="GitHub release (latest by date)"></a> -->
-<!-- <a href="https://github.com/koki-develop/CLI_NAME/releases/latest"><img alt="GitHub all releases" src="https://img.shields.io/github/downloads/koki-develop/CLI_NAME/total?style=flat"></a> -->
-<!-- <a href="https://github.com/koki-develop/CLI_NAME/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/koki-develop/CLI_NAME/ci.yml?logo=github" alt="GitHub Workflow Status"></a> -->
-<!-- <a href="https://codeclimate.com/github/koki-develop/CLI_NAME/maintainability"><img src="https://img.shields.io/codeclimate/maintainability/koki-develop/CLI_NAME?style=flat&amp;logo=codeclimate" alt="Maintainability"></a> -->
-<!-- <a href="https://goreportcard.com/report/github.com/koki-develop/CLI_NAME"><img src="https://goreportcard.com/badge/github.com/koki-develop/CLI_NAME" alt="Go Report Card"></a> -->
-<!-- <a href="./LICENSE"><img src="https://img.shields.io/github/license/koki-develop/CLI_NAME" alt="LICENSE"></a> -->
+<a href="https://github.com/koki-develop/moview/releases/latest"><img src="https://img.shields.io/github/v/release/koki-develop/moview" alt="GitHub release (latest by date)"></a>
+<a href="https://github.com/koki-develop/moview/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/koki-develop/moview/ci.yml?logo=github" alt="GitHub Workflow Status"></a>
+<a href="https://goreportcard.com/report/github.com/koki-develop/moview"><img src="https://goreportcard.com/badge/github.com/koki-develop/moview" alt="Go Report Card"></a>
+<a href="./LICENSE"><img src="https://img.shields.io/github/license/koki-develop/moview" alt="LICENSE"></a>
 </p>
 
-<!-- TODO: Replace `CLI_DESCRIPTION` with cli description. -->
 <p align="center">
-CLI_DESCRIPTION
+Play video in terminal.
+</p>
+
+<p align="center">
+<img src="./assets/demo.gif" alt="Demo" />
 </p>
 
 ## Contents
 
+- [Contents](#contents)
 - [Installation](#installation)
+  - [Homebrew Tap](#homebrew-tap)
+  - [`go install`](#go-install)
+  - [Releases](#releases)
 - [Usage](#usage)
 - [LICENSE](#license)
 
@@ -26,29 +29,34 @@ CLI_DESCRIPTION
 
 ### Homebrew Tap
 
-<!-- TODO: Replace `CLI_NAME` with cli name. -->
-
 ```console
-$ brew install koki-develop/tap/CLI_NAME
+$ brew install koki-develop/tap/moview
 ```
 
 ### `go install`
 
-<!-- TODO: Replace `CLI_NAME` with cli name. -->
-
 ```console
-$ go install github.com/koki-develop/CLI_NAME@latest
+$ go install github.com/koki-develop/moview@latest
 ```
 
 ### Releases
 
-<!-- TODO: Replace `CLI_NAME` with cli name. -->
-
-Download the binary from the [releases page](https://github.com/koki-develop/CLI_NAME/releases/latest).
+Download the binary from the [releases page](https://github.com/koki-develop/moview/releases/latest).
 
 ## Usage
 
-<!-- TODO: Describe how to use. -->
+```console
+$ moview --help
+Play video in terminal.
+
+Usage:
+  moview FILE [flags]
+
+Flags:
+      --auto-play   auto play video
+  -h, --help        help for moview
+  -v, --version     version for moview
+```
 
 ## LICENSE
 
