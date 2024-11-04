@@ -65,9 +65,10 @@ type model struct {
 	images    []image.Image
 	imagesDir string
 
-	asciisCache         []string
-	shouldRepreload     bool
-	shouldCancelPreload bool
+	asciisCache     []string
+	shouldRepreload bool
+
+	quitting bool
 }
 
 func newModel(opt *Option) *model {
@@ -237,11 +238,21 @@ type nextMsg struct{}
 type jumpMsg struct{ step int }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if msg, ok := msg.(spinner.TickMsg); ok {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+
+	if m.quitting {
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
-			m.shouldCancelPreload = true
+			m.quitting = true
 			m.state = modelStateCleanup
 			return m, tea.Batch(m.cleanup(), tea.ExitAltScreen)
 		case tea.KeySpace, tea.KeyEnter:
@@ -258,12 +269,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case errMsg:
-		m.shouldCancelPreload = true
 		m.err = msg.error
 		m.state = modelStateCleanup
 		return m, tea.Batch(m.cleanup(), tea.ExitAltScreen)
 
 	case tea.WindowSizeMsg:
+		if m.quitting {
+			return m, nil
+		}
+
 		m.windowHeight = msg.Height
 		m.windowWidth = msg.Width
 		m.progress.Width = msg.Width
@@ -320,11 +334,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case repreloadMsg:
 		return m, m.preloadAsciis()
-
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
 	}
 
 	return m, nil
@@ -442,8 +451,8 @@ func (m *model) preloadAsciis() tea.Cmd {
 				m.shouldRepreload = false
 				return repreloadMsg{}
 			}
-			if m.shouldCancelPreload {
-				m.shouldCancelPreload = false
+			if m.quitting {
+				m.quitting = false
 				return nil
 			}
 
