@@ -14,7 +14,7 @@ func MovieToImages(input string, out string) ([]string, error) {
 	}
 
 	// Execute ffmpeg
-	cmd := exec.Command("ffmpeg", "-i", input, "-vf", fmt.Sprintf("fps=fps=%f", probe.FrameRate), filepath.Join(out, "%d.jpg"))
+	cmd := exec.Command("ffmpeg", "-i", input, "-vf", fmt.Sprintf("fps=fps=%f,scale=1280:720:force_original_aspect_ratio=decrease", probe.FrameRate), filepath.Join(out, "%d.jpg"))
 	if err := cmd.Run(); err != nil {
 		return nil, err
 	}
