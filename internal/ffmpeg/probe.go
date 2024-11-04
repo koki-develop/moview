@@ -32,12 +32,12 @@ func (p *probe) Probe() (*Probe, error) {
 
 	n, err := strconv.ParseFloat(ns[0], 64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse numerator: %w", err)
+		return nil, err
 	}
 
 	d, err := strconv.ParseFloat(ns[1], 64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse denominator: %w", err)
+		return nil, err
 	}
 
 	return &Probe{
@@ -49,12 +49,12 @@ func FFProbe(path string) (*Probe, error) {
 	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate", "-of", "json", path)
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute ffprobe: %w", err)
+		return nil, err
 	}
 
 	var p probe
 	if err := json.Unmarshal(out, &p); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal ffprobe output: %w", err)
+		return nil, err
 	}
 	return p.Probe()
 }
