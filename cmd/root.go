@@ -9,8 +9,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:  "moview",
+	Use:  "moview FILE",
 	Args: cobra.ExactArgs(1),
+	Long: "Play video in terminal.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		p := args[0]
 
