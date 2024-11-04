@@ -98,6 +98,8 @@ func (m *model) View() string {
 		return m.loadingImagesView()
 	case modelStatePlaying, modelStatePaused:
 		return m.mainView()
+	case modelStateCleanup:
+		return m.cleanupView()
 	}
 
 	return ""
@@ -200,6 +202,10 @@ func (m *model) helpView() string {
 	return b.String()
 }
 
+func (m *model) cleanupView() string {
+	return m.spinnerView("Cleaning up...")
+}
+
 type modelState int
 
 const (
@@ -209,6 +215,7 @@ const (
 	modelStateLoadingImages
 	modelStatePlaying
 	modelStatePaused
+	modelStateCleanup
 )
 
 type errMsg struct{ error }
@@ -235,7 +242,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			m.shouldCancelPreload = true
-			return m, m.cleanup()
+			m.state = modelStateCleanup
+			return m, tea.Batch(m.cleanup(), tea.ExitAltScreen)
 		case tea.KeySpace, tea.KeyEnter:
 			switch m.state {
 			case modelStatePlaying:
@@ -252,7 +260,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.shouldCancelPreload = true
 		m.err = msg.error
-		return m, m.cleanup()
+		m.state = modelStateCleanup
+		return m, tea.Batch(m.cleanup(), tea.ExitAltScreen)
 
 	case tea.WindowSizeMsg:
 		m.windowHeight = msg.Height
