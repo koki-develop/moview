@@ -9,16 +9,24 @@ type Option struct {
 }
 
 func Start(opt *Option) error {
-	p := tea.NewProgram(newModel(opt))
+	m := newModel(opt)
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		return err
 	}
+
+	if m.err != nil {
+		return m.err
+	}
+
 	return nil
 }
 
 var _ tea.Model = &model{}
 
 type model struct {
+	err error
+
 	path string
 }
 
