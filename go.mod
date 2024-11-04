@@ -4,6 +4,7 @@ go 1.21.0
 
 require (
 	github.com/charmbracelet/bubbletea v1.1.2
+	github.com/fatih/color v1.18.0
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/spf13/cobra v1.7.0
@@ -18,6 +19,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
