@@ -5,7 +5,6 @@ import (
 	"image"
 	_ "image/jpeg"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -29,7 +28,6 @@ type Option struct {
 func Start(opt *Option) error {
 	m := newModel(opt)
 	p := tea.NewProgram(m)
-	m.program = p
 	if _, err := p.Run(); err != nil {
 		return err
 	}
@@ -44,17 +42,13 @@ func Start(opt *Option) error {
 var _ tea.Model = &model{}
 
 type model struct {
-	program *tea.Program
-	err     error
+	err error
 
 	progress progress.Model
 	spinner  spinner.Model
 
 	resizer   *resize.Resizer
 	converter *ascii.Converter
-
-	totalFrameCount  int
-	loadedFrameCount int
 
 	autoPlay   bool
 	autoRepeat bool
@@ -66,9 +60,9 @@ type model struct {
 	windowHeight int
 	windowWidth  int
 
-	frameRate float64
-	images    []image.Image
-	imagesDir string
+	frameRate  float64
+	imagesDir  string
+	imagePaths []string
 
 	asciisCache     []string
 	shouldRepreload bool
@@ -103,8 +97,6 @@ func (m *model) View() string {
 		return m.loadingMetadataView()
 	case modelStateExtractingImages:
 		return m.extractingImagesView()
-	case modelStateLoadingImages:
-		return m.loadingImagesView()
 	case modelStatePlaying, modelStatePaused:
 		return m.mainView()
 	case modelStateCleanup:
@@ -120,10 +112,6 @@ func (m *model) loadingMetadataView() string {
 
 func (m *model) extractingImagesView() string {
 	return m.spinnerView("Extracting frames...")
-}
-
-func (m *model) loadingImagesView() string {
-	return m.spinnerView(fmt.Sprintf("Loading frames...(%d/%d)", m.loadedFrameCount, m.totalFrameCount))
 }
 
 func (m *model) spinnerView(text string) string {
@@ -144,12 +132,12 @@ func (m *model) mainView() string {
 }
 
 func (m *model) progressView() string {
-	currentPercent := float64(m.current) / float64(len(m.images))
-	if m.current == len(m.images)-1 {
+	currentPercent := float64(m.current) / float64(len(m.imagePaths))
+	if m.current == len(m.imagePaths)-1 {
 		currentPercent = 1
 	}
 
-	totalSeconds := float64(len(m.images)) / m.frameRate
+	totalSeconds := float64(len(m.imagePaths)) / m.frameRate
 	currentSeconds := float64(m.current) / m.frameRate
 	progressText := fmt.Sprintf(
 		"%02d:%02d / %02d:%02d",
@@ -174,8 +162,28 @@ func (m *model) currentAsciiView() string {
 	return v
 }
 
+func (m *model) loadImage(index int) (image.Image, error) {
+	f, err := os.Open(m.imagePaths[index])
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return img, nil
+}
+
 func (m *model) asciiView(index int) (string, error) {
-	img := m.resizer.Resize(m.images[index], m.windowWidth-2, m.windowHeight-5)
+	img, err := m.loadImage(index)
+	if err != nil {
+		return "", err
+	}
+
+	img = m.resizer.Resize(img, m.windowWidth-2, m.windowHeight-5)
 	ascii, err := m.converter.ImageToASCII(img)
 	if err != nil {
 		return "", err
@@ -221,7 +229,6 @@ const (
 	_ modelState = iota
 	modelStateLoadingMetadata
 	modelStateExtractingImages
-	modelStateLoadingImages
 	modelStatePlaying
 	modelStatePaused
 	modelStateCleanup
@@ -234,10 +241,6 @@ type metadataMsg struct {
 }
 type extractImagesMsg struct {
 	paths []string
-}
-type loadFrameMsg struct{}
-type loadMsg struct {
-	images []image.Image
 }
 type repreloadMsg struct{}
 type playMsg struct{}
@@ -289,8 +292,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.windowHeight = msg.Height
 		m.windowWidth = msg.Width
 		m.progress.Width = msg.Width
-		if len(m.images) > 0 {
-			m.asciisCache = make([]string, len(m.images))
+		if len(m.imagePaths) > 0 {
+			m.asciisCache = make([]string, len(m.imagePaths))
 			m.shouldRepreload = true
 		}
 		return m, nil
@@ -302,17 +305,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.extractImages(msg.imagesDir)
 
 	case extractImagesMsg:
-		m.totalFrameCount = len(msg.paths)
-		m.state = modelStateLoadingImages
-		return m, m.load(msg.paths)
-
-	case loadFrameMsg:
-		m.loadedFrameCount++
-		return m, nil
-
-	case loadMsg:
-		m.images = msg.images
-		m.asciisCache = make([]string, len(m.images))
+		m.imagePaths = msg.paths
+		m.asciisCache = make([]string, len(msg.paths))
+		m.state = modelStatePlaying
 		cmds := []tea.Cmd{m.preloadAsciis(), tea.EnterAltScreen}
 		if m.autoPlay {
 			cmds = append(cmds, m.play())
@@ -323,16 +318,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case playMsg:
 		m.state = modelStatePlaying
-		if m.current == len(m.images)-1 {
+		if m.current == len(m.imagePaths)-1 {
 			m.current = 0
 		}
 		return m, m.next()
 
 	case nextMsg:
-		if m.current < len(m.images)-1 {
+		if m.current < len(m.imagePaths)-1 {
 			m.current++
 		}
-		if m.current >= len(m.images)-1 {
+		if m.current >= len(m.imagePaths)-1 {
 			if m.autoRepeat {
 				m.current = 0
 			} else {
@@ -346,7 +341,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case jumpMsg:
-		m.current = util.Min(len(m.images)-1, util.Max(0, msg.step))
+		m.current = util.Min(len(m.imagePaths)-1, util.Max(0, msg.step))
 		m.shouldRepreload = true
 		return m, nil
 
@@ -359,14 +354,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) cleanup() tea.Cmd {
 	return func() tea.Msg {
-		if m.imagesDir != "" {
+		if len(m.imagePaths) > 0 {
 			// NOTE: Using os.RemoveAll alone can fail sometimes, so delete files one by one
-			files, err := os.ReadDir(m.imagesDir)
-			if err != nil {
-				return errMsg{err}
-			}
-			for _, file := range files {
-				if err := os.Remove(filepath.Join(m.imagesDir, file.Name())); err != nil {
+			for _, path := range m.imagePaths {
+				if err := os.Remove(path); err != nil {
 					return errMsg{err}
 				}
 			}
@@ -405,66 +396,9 @@ func (m *model) extractImages(dir string) tea.Cmd {
 	}
 }
 
-func (m *model) load(paths []string) tea.Cmd {
-	return func() tea.Msg {
-		imgs := make([]image.Image, len(paths))
-		errChan := make(chan error, 1)
-		resultChan := make(chan struct {
-			index int
-			img   image.Image
-		}, len(paths))
-
-		numWorkers := 20
-		batchSize := (len(paths) + numWorkers - 1) / numWorkers
-
-		for w := 0; w < numWorkers; w++ {
-			start := w * batchSize
-			end := start + batchSize
-			if end > len(paths) {
-				end = len(paths)
-			}
-
-			go func(start, end int) {
-				for i := start; i < end; i++ {
-					f, err := os.Open(paths[i])
-					if err != nil {
-						errChan <- err
-						return
-					}
-
-					img, _, err := image.Decode(f)
-					f.Close()
-					if err != nil {
-						errChan <- err
-						return
-					}
-
-					resultChan <- struct {
-						index int
-						img   image.Image
-					}{i, img}
-
-					m.program.Send(loadFrameMsg{})
-				}
-			}(start, end)
-		}
-
-		for i := 0; i < len(paths); i++ {
-			select {
-			case err := <-errChan:
-				return errMsg{err}
-			case result := <-resultChan:
-				imgs[result.index] = result.img
-			}
-		}
-
-		return loadMsg{imgs}
-	}
-}
-
 func (m *model) preloadAsciis() tea.Cmd {
 	return func() tea.Msg {
-		for i := m.current; i < len(m.images); i++ {
+		for i := m.current; i < len(m.imagePaths); i++ {
 			if m.shouldRepreload {
 				m.shouldRepreload = false
 				return repreloadMsg{}
